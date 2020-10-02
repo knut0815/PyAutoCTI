@@ -18,7 +18,6 @@ PixelLineCollection in autocti/data/pixel_lines.py for full details.
 """
 
 import numpy as np
-import pytest
 import os
 from autoconf import conf
 import matplotlib.pyplot as plt
@@ -66,6 +65,61 @@ print("")
 warm_pixels = PixelLineCollection()
 
 
+def prescan_fitted_bias_column(prescan, n_rows=2048, n_rows_ov=20):
+    """ 
+    Generate a bias column to be subtracted from the main image by doing a
+    least squares fit to the serial prescan region.
+
+    e.g. image -= prescan_fitted_bias_column(image[18:24])
+
+    See Anton & Rorres (2013), S9.3, p460.
+
+    Parameters
+    ----------
+    prescan : [[float]]
+        The serial prescan part of the image. Should usually cover the full 
+        number of rows but may skip the first few columns of the prescan to 
+        avoid trails.
+
+    n_rows : int
+        The number of rows in the image, exculding overscan.
+
+    n_rows_ov : int, int
+        The number of overscan rows in the image.
+
+    Returns
+    -------
+    bias_column : [float]
+        The fitted bias to be subtracted from all image columns. 
+    """
+    n_columns_fit = prescan.shape[1]
+
+    # Flatten the multiple fitting columns to a long 1D array
+    # y = [y_1_1, y_2_1, ..., y_nrow_1, y_1_2, y_2_2, ..., y_nrow_ncolfit]
+    y = prescan[:-n_rows_ov].T.flatten()
+    # x = [1, 2, ..., nrow, 1, ..., nrow, 1, ..., nrow, ...]
+    x = np.tile(np.arange(n_rows), n_columns_fit)
+
+    # M = [[1, 1, ..., 1], [x_1, x_2, ..., x_n]].T
+    M = np.array([np.ones(n_rows * n_columns_fit), x]).T
+
+    # Best-fit values for y = M v
+    v = np.dot(np.linalg.inv(np.dot(M.T, M)), np.dot(M.T, y))
+
+    # Map to full image size for easy subtraction
+    bias_column = v[0] + v[1] * np.arange(n_rows + n_rows_ov)
+
+    # print("# fitted bias v =", v)
+    # plt.figure()
+    # pixels = np.arange(n_rows + n_rows_ov)
+    # for i in range(n_columns_fit):
+    #     plt.scatter(pixels, prescan[:, i])
+    # plt.plot(pixels, bias_column)
+    # plt.show()
+
+    return np.transpose([bias_column])
+
+
 print("1.")
 # Find the warm pixels in each image
 for name in image_names:
@@ -75,10 +129,14 @@ for name in image_names:
     )
     date = 2400000.5 + frame.exposure_info.modified_julian_date
 
+    # Subtract from all columns the fitted prescan bias
+    frame -= prescan_fitted_bias_column(frame[:, 18:24])
+
+    # Load and subtract the bias image
+    ###wip
+
     # Find the warm pixel trails
-    new_warm_pixels = find_warm_pixels(
-        image=frame, origin=name, date=date, flux_min=20,
-    )
+    new_warm_pixels = find_warm_pixels(image=frame, origin=name, date=date,)
 
     print("Found %d possible warm pixels in %s" % (len(new_warm_pixels), name))
 
@@ -105,6 +163,14 @@ print(
 
 # Extract the consistent warm pixels
 warm_pixels.lines = warm_pixels.lines[consistent_lines]
+
+if not True:
+    # Save
+    warm_pixels.save("consistent_pixel_lines")
+
+    # Load
+    warm_pixels = PixelLineCollection()
+    warm_pixels.load("consistent_pixel_lines")
 
 
 print("3.")
@@ -135,10 +201,10 @@ axes = [
     [plt.subplot(gs[i_row, i_flux]) for i_flux in range(n_flux_bins)]
     for i_row in range(n_row_bins)
 ]
-length = np.amax(stacked_lines.lengths)
+length = int(np.amax(stacked_lines.lengths) / 2)
 pixels = np.arange(length)
 colours = plt.cm.jet(np.linspace(0.05, 0.95, n_background_bins))
-y_min = 1.5 
+y_min = np.amin(stacked_lines.data)
 y_max = 1.5 * np.amax(stacked_lines.data)
 
 # Plot each stack
@@ -165,8 +231,8 @@ for i_row in range(n_row_bins):
 
             ax.errorbar(
                 pixels,
-                line.data - line.background,
-                yerr=line.error,
+                line.data[length:],
+                yerr=line.error[length:],
                 c=c,
                 capsize=2,
                 alpha=0.7,
@@ -192,6 +258,7 @@ for i_row in range(n_row_bins):
             ax.set_yticklabels([])
         if i_row == 0:
             ax.set_xlabel("Pixel")
+            ax.set_xticks(np.arange(0, 8.1, 2))
         else:
             ax.set_xticklabels([])
 
@@ -218,3 +285,7 @@ for i_row in range(n_row_bins):
 plt.savefig(f"{path}/stack_warm_pixels.png", dpi=200)
 plt.close()
 print(f"Saved {path}/stack_warm_pixels.png")
+
+# Save the stacked lines
+if  True:
+    stacked_lines.save("stacked_pixel_lines")
