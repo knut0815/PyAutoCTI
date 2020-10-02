@@ -30,7 +30,8 @@ def find_warm_pixels(
         register is above row 0.
     
     trail_length : int
-        The number of pixels following the warm pixel to save as a trail.
+        The number of pixels following the warm pixel to save as a trail. The 
+        same number of preceeding pixels are also included.
         
     n_parallel_overscan : int
         The number of rows in the overscan region of the input image. i.e. the 
@@ -180,7 +181,7 @@ def find_warm_pixels(
         row, column = location
         warm_pixels.append(
             PixelLine(
-                data=image[row : row + trail_length, column],
+                data=image[row - trail_length : row + trail_length, column],
                 origin=origin,
                 location=[row, column],
                 date=date,
