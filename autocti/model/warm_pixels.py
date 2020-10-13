@@ -179,9 +179,17 @@ def find_warm_pixels(
     warm_pixels = []
     for location in warm_pixel_locations:
         row, column = location
+        
+        # Subtract a mirror of the preceding pixels from the trail to remove 
+        # e.g. a star's profile
+        data = image[row - trail_length + 1 : row + trail_length, column] - background
+        if not True:
+            data[trail_length:] -= data[:trail_length - 1]
+        data += background
+        
         warm_pixels.append(
             PixelLine(
-                data=image[row - trail_length : row + trail_length, column],
+                data=data,
                 origin=origin,
                 location=[row, column],
                 date=date,
