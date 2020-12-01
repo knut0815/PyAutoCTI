@@ -8,7 +8,6 @@ A small patch of the image is plotted with the warm pixels marked with red Xs.
 import numpy as np
 import pytest
 import os
-from autoconf import conf
 import matplotlib.pyplot as plt
 
 from autocti.data.pixel_lines import PixelLine, PixelLineCollection
@@ -18,12 +17,9 @@ from autoarray.instruments import acs
 # Path to this file
 path = os.path.dirname(os.path.realpath(__file__))
 
-# Set up some configuration options for the automatic fits dataset loading
-conf.instance = conf.Config(config_path=f"{path}/config")
-
 # Load the HST ACS dataset
 name = "acs/jc0a01h8q_raw"
-frame = acs.FrameACS.from_fits(file_path=f"{path}/{name}.fits", quadrant_letter="A")
+frame = acs.ImageACS.from_fits(file_path=f"{path}/{name}.fits", quadrant_letter="A")
 
 
 def prescan_fitted_bias_column(prescan, n_rows=2048, n_rows_ov=20):
@@ -81,15 +77,14 @@ def prescan_fitted_bias_column(prescan, n_rows=2048, n_rows_ov=20):
     return np.transpose([bias_column])
 
 
+# Load and subtract the bias image
+bias_name = "acs/25b1734qj_bia"
+bias = acs.FrameACS.from_fits(file_path=f"{path}/{bias_name}.fits", quadrant_letter="A")
+print(np.amin(bias), np.mean(bias), np.median(bias), np.amax(bias))
+frame -= bias
+
 # Subtract from all columns the fitted prescan bias
 frame -= prescan_fitted_bias_column(frame[:, 18:24])
-
-# Load and subtract the bias image
-###wip
-# bias_name = "acs/25b1734qj_bia"
-# bias = acs.FrameACS.from_fits(file_path=f"{path}/{bias_name}.fits", quadrant_letter="A")
-# print(np.amin(bias), np.mean(bias), np.median(bias), np.amax(bias))
-# frame -= bias
 
 # Extract an example patch of the full image
 row_start, row_end, column_start, column_end = -300, -100, -300, -100

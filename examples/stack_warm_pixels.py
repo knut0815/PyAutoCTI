@@ -19,7 +19,6 @@ PixelLineCollection in autocti/data/pixel_lines.py for full details.
 
 import numpy as np
 import os
-from autoconf import conf
 import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
 from urllib.request import urlretrieve
@@ -30,9 +29,6 @@ from autoarray.instruments import acs
 
 # Path to this file
 path = os.path.dirname(os.path.realpath(__file__))
-
-# Set up some configuration options for the automatic fits dataset loading
-conf.instance = conf.Config(config_path=f"{path}/config")
 
 # Download the example image files
 image_names = [
@@ -109,14 +105,6 @@ def prescan_fitted_bias_column(prescan, n_rows=2048, n_rows_ov=20):
     # Map to full image size for easy subtraction
     bias_column = v[0] + v[1] * np.arange(n_rows + n_rows_ov)
 
-    # print("# fitted bias v =", v)
-    # plt.figure()
-    # pixels = np.arange(n_rows + n_rows_ov)
-    # for i in range(n_columns_fit):
-    #     plt.scatter(pixels, prescan[:, i])
-    # plt.plot(pixels, bias_column)
-    # plt.show()
-
     return np.transpose([bias_column])
 
 
@@ -124,19 +112,21 @@ print("1.")
 # Find the warm pixels in each image
 for name in image_names:
     # Load the HST ACS dataset
-    frame = acs.FrameACS.from_fits(
+    frame = acs.ImageACS.from_fits(
         file_path=f"{path}/acs/{name}.fits", quadrant_letter="A"
     )
     date = 2400000.5 + frame.exposure_info.modified_julian_date
 
+    # # Load and subtract the bias image
+    # frame -= acs.FrameACS.from_fits(
+    #     file_path=f"{path}/acs/{name}.fits", quadrant_letter="A"
+    # )
+
     # Subtract from all columns the fitted prescan bias
     frame -= prescan_fitted_bias_column(frame[:, 18:24])
 
-    # Load and subtract the bias image
-    ###wip
-
     # Find the warm pixel trails
-    new_warm_pixels = find_warm_pixels(image=frame, origin=name, date=date,)
+    new_warm_pixels = find_warm_pixels(image=frame, origin=name, date=date)
 
     print("Found %d possible warm pixels in %s" % (len(new_warm_pixels), name))
 
@@ -202,10 +192,10 @@ axes = [
     for i_row in range(n_row_bins)
 ]
 length = int(np.amax(stacked_lines.lengths) / 2)
-pixels = np.arange(length)
+pixels = np.arange(length) + 1
 colours = plt.cm.jet(np.linspace(0.05, 0.95, n_background_bins))
-y_min = np.amin(stacked_lines.data)
-y_max = 1.5 * np.amax(stacked_lines.data)
+y_min = np.amin(stacked_lines.data[:, -length:])
+y_max = 1.5 * np.amax(stacked_lines.data[:, -length:])
 
 # Plot each stack
 for i_row in range(n_row_bins):
@@ -228,11 +218,10 @@ for i_row in range(n_row_bins):
             # Skip empty bins
             if line.n_stacked == 0:
                 continue
-
             ax.errorbar(
                 pixels,
-                line.data[length:],
-                yerr=line.error[length:],
+                line.data[-length:],
+                yerr=line.error[-length:],
                 c=c,
                 capsize=2,
                 alpha=0.7,
@@ -244,12 +233,12 @@ for i_row in range(n_row_bins):
             else:
                 text = "\n" * i_background + "$%d$" % line.n_stacked
             ax.text(
-                length * 0.9, y_max * 0.7, text, ha="right", va="top",
+                (length + 1) * 0.9, y_max * 0.8, text, ha="right", va="top",
             )
 
         ax.set_yscale("log")
         ax.set_ylim(y_min, y_max)
-        ax.set_xlim(-0.5, length - 0.5)
+        ax.set_xlim(0.5, length + 0.5)
 
         # Axis labels
         if i_flux == 0:
@@ -258,7 +247,7 @@ for i_row in range(n_row_bins):
             ax.set_yticklabels([])
         if i_row == 0:
             ax.set_xlabel("Pixel")
-            ax.set_xticks(np.arange(0, 8.1, 2))
+            ax.set_xticks(np.arange(1, length + 0.1, 2))
         else:
             ax.set_xticklabels([])
 
@@ -287,5 +276,5 @@ plt.close()
 print(f"Saved {path}/stack_warm_pixels.png")
 
 # Save the stacked lines
-if  True:
+if not True:
     stacked_lines.save("stacked_pixel_lines")
