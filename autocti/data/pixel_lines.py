@@ -326,6 +326,10 @@ class PixelLineCollection(object):
             A new collection of the stacked pixel lines, including errors. 
             Metadata parameters contain the lower edge bin value.
             
+            The following extra parameters are added to each PixelLine object, 
+            containing the mean and rms of the parameters in each bin: mean_row, 
+            rms_row, mean_background, rms_background, mean_flux, rms_flux.
+            
         row_bins, flux_bins, date_bins, background_bins : [float]
             Returned if return_bin_info is True. The edge values of the bins for
             each parameter.
@@ -447,10 +451,19 @@ class PixelLineCollection(object):
             for background in background_bins[:-1]
             for flux in flux_bins[:-1]
         ]
-
+        
+        # Initialise sums of other parameters and other parameters squared
+        n_bins = n_row_bins * n_flux_bins * n_date_bins * n_background_bins
+        sum_rows = np.zeros(n_bins)
+        sum_backgrounds = np.zeros(n_bins)
+        sum_fluxes = np.zeros(n_bins)
+        sum_sq_rows = np.zeros(n_bins)
+        sum_sq_backgrounds = np.zeros(n_bins)
+        sum_sq_fluxes = np.zeros(n_bins)
+        
         # Add the line data to each stack
-        for i_row, i_flux, i_date, i_background, data in zip(
-            row_indices, flux_indices, date_indices, background_indices, self.data
+        for i_row, i_flux, i_date, i_background, line in zip(
+            row_indices, flux_indices, date_indices, background_indices, self.lines
         ):
             # Discard lines with values outside of the bins
             if -1 in [i_row, i_flux, i_date, i_background]:
@@ -470,21 +483,44 @@ class PixelLineCollection(object):
 
             # Append the line data
             if stacked_lines[index].n_stacked == 0:
-                stacked_lines[index].data = [data]
+                stacked_lines[index].data = [line.data]
             else:
                 stacked_lines[index].data = np.append(
-                    stacked_lines[index].data, [data], axis=0,
+                    stacked_lines[index].data, [line.data], axis=0,
                 )
             stacked_lines[index].n_stacked += 1
+            
+            # Append the other parameters
+            sum_rows[index] += line.location[0]
+            sum_backgrounds[index] += line.background
+            sum_fluxes[index] += line.flux
+            sum_sq_rows[index] += line.location[0] ** 2
+            sum_sq_backgrounds[index] += line.background ** 2
+            sum_sq_fluxes[index] += line.flux ** 2
 
         # Take the means and standard errors
-        for line in stacked_lines:
+        for index, line in enumerate(stacked_lines):
             if line.n_stacked > 0:
                 line.error = np.std(line.data, axis=0) / np.sqrt(line.n_stacked)
+                
+                line.mean_row = sum_rows[index] / line.n_stacked
+                line.rms_row = np.sqrt(sum_sq_rows[index] / line.n_stacked)
+                line.mean_background = sum_backgrounds[index] / line.n_stacked
+                line.rms_background = np.sqrt(sum_sq_backgrounds[index] / line.n_stacked)
+                line.mean_flux = sum_fluxes[index] / line.n_stacked
+                line.rms_flux = np.sqrt(sum_sq_fluxes[index] / line.n_stacked)
             else:
                 line.error = np.zeros(length)
+                
+                line.mean_row = None
+                line.rms_row = None
+                line.mean_background = None
+                line.rms_background = None
+                line.mean_flux = None
+                line.rms_flux = None
 
             line.data = np.mean(line.data, axis=0)
+            
 
         if return_bin_info:
             return (

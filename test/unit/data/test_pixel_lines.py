@@ -302,6 +302,51 @@ class TestPixelLineCollection:
         assert flux_bins == pytest.approx([1, 10 ** 0.5, 10])
         assert date_bins == pytest.approx([1, 13])
         assert background_bins == pytest.approx([0, 0])
+        
+        # Check mean and rms values
+        def rms(values): return np.sqrt(np.mean(np.array(values)**2))
+        
+        assert stack_1.mean_row == np.mean([0, 1, 2])
+        assert stack_1.rms_row == rms([0, 1, 2])
+        assert stack_1.mean_background == 0
+        assert stack_1.rms_background == 0
+        assert stack_1.mean_flux == np.mean([3, 2.5, 2])
+        assert stack_1.rms_flux == rms([3, 2.5, 2])
+
+        assert stack_2.mean_row == np.mean([3, 4])
+        assert stack_2.rms_row == rms([3, 4])
+        assert stack_2.mean_background == 0
+        assert stack_2.rms_background == 0
+        assert stack_2.mean_flux == np.mean([10, 9])
+        assert stack_2.rms_flux == rms([10, 9])
+
+        assert stack_3.mean_row == np.mean([10, 11, 12])
+        assert stack_3.rms_row == rms([10, 11, 12])
+        assert stack_3.mean_background == 0
+        assert stack_3.rms_background == 0
+        assert stack_3.mean_flux == np.mean([3, 2.5, 2])
+        assert stack_3.rms_flux == rms([3, 2.5, 2])
+
+        assert stack_4.mean_row == np.mean([10, 11])
+        assert stack_4.rms_row == rms([10, 11])
+        assert stack_4.mean_background == 0
+        assert stack_4.rms_background == 0
+        assert stack_4.mean_flux == np.mean([10, 8])
+        assert stack_4.rms_flux == rms([10, 8])
+
+        assert stack_5.mean_row == 20
+        assert stack_5.rms_row == 20
+        assert stack_5.mean_background == 0
+        assert stack_5.rms_background == 0
+        assert stack_5.mean_flux == 3
+        assert stack_5.rms_flux == 3
+
+        assert stack_6.mean_row == None
+        assert stack_6.rms_row == None
+        assert stack_6.mean_background == None
+        assert stack_6.rms_background == None
+        assert stack_6.mean_flux == None
+        assert stack_6.rms_flux == None
 
     def test__generate_stacked_lines_from_bins__custom_bins(self):
         # Stack lines in 3 row bins and 2 flux bins
@@ -356,11 +401,6 @@ class TestPixelLineCollection:
         assert stacked_lines.n_lines == 6
 
         stack_1, stack_2, stack_3, stack_4, stack_5, stack_6 = stacked_lines.lines
-
-        # for line in stacked_lines.lines:
-        #     print(line.data)
-        #     print(line.error)
-        # exit()
 
         assert stack_1.n_stacked == 3
         assert stack_1.data == pytest.approx([2.5, 2, 1.5])
